@@ -155,7 +155,7 @@ export default function ComplianceWatch() {
                   </div>
 
                   {item.action_required && (
-                    <p className="text-sm text-gray-600">{item.action_required}</p>
+                    <p className="text-sm text-gray-600 whitespace-pre-line">{item.action_required}</p>
                   )}
 
                   {item.deadline && (
