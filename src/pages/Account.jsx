@@ -207,7 +207,7 @@ export default function Account() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
 
       {/* Header */}
-      <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-8">
+      <header className="sticky top-0 z-30 h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-8">
         <div className="flex items-center gap-3">
           <Link to="/dashboard" className="text-navy-900 hover:text-blue-600 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
