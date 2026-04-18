@@ -202,6 +202,12 @@ export default function Login() {
                   Register your agency
                 </Link>
               </p>
+
+              <p className="text-center text-xs text-gray-400 mt-4">
+                <Link to="/terms" className="hover:underline">Terms of Service</Link>
+                {' · '}
+                <Link to="/privacy" className="hover:underline">Privacy Policy</Link>
+              </p>
             </>
           )}
         </div>

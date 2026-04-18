@@ -7,6 +7,8 @@ import Signup from './pages/Signup'
 import Onboarding from './pages/Onboarding'
 import Dashboard from './pages/Dashboard'
 import Account from './pages/Account'
+import PrivacyPolicy from './pages/PrivacyPolicy'
+import Terms from './pages/Terms'
 
 export default function App() {
   return (
@@ -15,6 +17,8 @@ export default function App() {
       <Routes>
         <Route path="/login"    element={<Login />} />
         <Route path="/signup"   element={<Signup />} />
+        <Route path="/privacy"  element={<PrivacyPolicy />} />
+        <Route path="/terms"    element={<Terms />} />
         <Route
           path="/onboarding"
           element={
