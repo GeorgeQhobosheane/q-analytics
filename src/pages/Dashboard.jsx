@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Sidebar from '../components/layout/Sidebar'
 import TopBar from '../components/layout/TopBar'
 import DocuMind from './dashboard/DocuMind'
@@ -18,6 +18,12 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const { label, Component } = TABS[activeTab]
+
+  // Update browser tab title on active tab change
+  useEffect(() => {
+    document.title = `${label} — Q Analytics`
+    return () => { document.title = 'Q Analytics' }
+  }, [label])
 
   return (
     <div className="h-screen flex overflow-hidden bg-gray-50">

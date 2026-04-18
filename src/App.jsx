@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { ToastProvider } from './context/ToastContext'
 import ProtectedRoute from './components/layout/ProtectedRoute'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
@@ -9,6 +10,7 @@ import Account from './pages/Account'
 
 export default function App() {
   return (
+    <ToastProvider>
     <AuthProvider>
       <Routes>
         <Route path="/login"    element={<Login />} />
@@ -40,5 +42,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </AuthProvider>
+    </ToastProvider>
   )
 }

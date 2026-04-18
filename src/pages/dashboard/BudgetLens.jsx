@@ -1,8 +1,20 @@
 import { useState, useRef, useEffect } from 'react'
+import { useToast } from '../../context/ToastContext'
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts'
+
+const HISTORY_KEY = 'budgetlens_history'
+const MAX_HISTORY = 5
+
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) ?? [] } catch { return [] }
+}
+function saveHistory(entry) {
+  const history = [entry, ...loadHistory().filter(h => h.fileName !== entry.fileName)].slice(0, MAX_HISTORY)
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const VIOLET      = '#7C3AED'
@@ -94,6 +106,8 @@ function PieLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function BudgetLens() {
+  const toast = useToast()
+
   // ── State ──────────────────────────────────────────────────────────────────
   const [phase, setPhase]           = useState('upload') // upload | parsing | analyzing | ready
   const [file, setFile]             = useState(null)
@@ -107,6 +121,7 @@ export default function BudgetLens() {
   const [question, setQuestion]     = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const [exporting, setExporting]   = useState(false)
+  const [history, setHistory]       = useState(loadHistory)
 
   const chatEndRef = useRef()
   const streamRef  = useRef('')   // accumulates streaming text outside React state
@@ -187,7 +202,18 @@ export default function BudgetLens() {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error || `Server error ${res.status}`)
       }
-      setAnalysis(await res.json())
+      const result = await res.json()
+      setAnalysis(result)
+      // Persist to history
+      const entry = {
+        fileName:    file?.name ?? 'Unknown',
+        rowCount:    rows.length,
+        totalBudget: result.total_budget ?? null,
+        analyzedAt:  new Date().toISOString(),
+        analysis:    result,
+      }
+      saveHistory(entry)
+      setHistory(loadHistory())
     } catch (err) {
       console.error('BudgetLens analysis error:', err)
       setAnalysisError(err.message || 'Analysis failed.')
@@ -399,6 +425,11 @@ ${chatHtml ? `<h2>AI Analysis Session</h2>${chatHtml}` : ''}
 </body></html>`
 
     const win = window.open('', '_blank')
+    if (!win || win.closed || typeof win.closed === 'undefined') {
+      setExporting(false)
+      toast.error('Pop-up blocked. Please allow pop-ups for this site and try again.')
+      return
+    }
     win.document.write(html)
     win.document.close()
     setTimeout(() => { win.print(); setExporting(false) }, 500)
@@ -441,6 +472,43 @@ ${chatHtml ? `<h2>AI Analysis Session</h2>${chatHtml}` : ''}
             </div>
           ))}
         </div>
+
+        {/* Recent analyses */}
+        {history.length > 0 && (
+          <div>
+            <h3 className="text-sm font-bold text-gray-700 mb-2">Recent Analyses</h3>
+            <div className="space-y-2">
+              {history.map((h, i) => (
+                <button
+                  key={i}
+                  onClick={() => {
+                    setFile({ name: h.fileName })
+                    setAnalysis(h.analysis)
+                    setHeaders([])
+                    setRows([])
+                    setCsvData('')
+                    setMessages([])
+                    setPhase('ready')
+                  }}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-white
+                    border border-gray-200 rounded-xl hover:border-violet-300 hover:bg-violet-50
+                    transition-colors text-left"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{h.fileName}</p>
+                    <p className="text-xs text-gray-400">
+                      {h.rowCount} rows
+                      {h.totalBudget ? ` · ${fmt(h.totalBudget)}` : ''}
+                      {' · '}
+                      {new Date(h.analyzedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <span className="text-xs text-violet-600 font-semibold">Restore →</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -544,31 +612,37 @@ ${chatHtml ? `<h2>AI Analysis Session</h2>${chatHtml}` : ''}
                   </span>
                 </p>
               )}
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie
-                    data={analysis.top_categories ?? []}
-                    dataKey="amount"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={90}
-                    labelLine={false}
-                    label={PieLabel}
-                  >
-                    {(analysis.top_categories ?? []).map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v) => [fmt(v), 'Amount']} />
-                  <Legend
-                    iconSize={10}
-                    formatter={value => (
-                      <span style={{ fontSize: 11, color: '#4b5563' }}>{value}</span>
-                    )}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              {(analysis.top_categories ?? []).length === 0 ? (
+                <div className="flex items-center justify-center h-52 text-gray-400 text-sm">
+                  No category data available for this budget
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie
+                      data={analysis.top_categories}
+                      dataKey="amount"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={90}
+                      labelLine={false}
+                      label={PieLabel}
+                    >
+                      {analysis.top_categories.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v) => [fmt(v), 'Amount']} />
+                    <Legend
+                      iconSize={10}
+                      formatter={value => (
+                        <span style={{ fontSize: 11, color: '#4b5563' }}>{value}</span>
+                      )}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
             </div>
 
             {/* Right column: Summary + Grants */}

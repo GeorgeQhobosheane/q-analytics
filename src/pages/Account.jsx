@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import NotificationBell from '../components/notifications/NotificationBell'
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
@@ -89,6 +90,12 @@ const PLANS = [
 
 export default function Account() {
   const { user, profile, refreshProfile, signOut } = useAuth()
+  const toast = useToast()
+
+  useEffect(() => {
+    document.title = 'Account — Q Analytics'
+    return () => { document.title = 'Q Analytics' }
+  }, [])
 
   // Agency profile
   const [agencyProfile, setAgencyProfile] = useState(null)
@@ -157,6 +164,7 @@ export default function Account() {
       setAgencyProfile(prev => ({ ...prev, ...form }))
       setSaveSuccess(true)
       setEditing(false)
+      toast.success('Profile updated')
       setTimeout(() => setSaveSuccess(false), 4000)
     } catch (err) {
       setSaveError(err.message ?? 'Failed to save changes.')
@@ -177,7 +185,7 @@ export default function Account() {
       if (data.url) window.location.href = data.url
       else throw new Error(data.error ?? 'Could not open billing portal.')
     } catch (err) {
-      alert(err.message)
+      toast.error(err.message)
     } finally {
       setPortalLoading(false)
     }
@@ -195,7 +203,7 @@ export default function Account() {
       if (data.url) window.location.href = data.url
       else throw new Error(data.error ?? 'Could not start checkout.')
     } catch (err) {
-      alert(err.message)
+      toast.error(err.message)
     } finally {
       setCheckoutLoading(null)
     }
@@ -387,7 +395,16 @@ export default function Account() {
               Open Billing Portal
             </Button>
           ) : (
-            <p className="text-xs text-gray-400">Upgrade below to manage billing.</p>
+            <div className="flex items-start gap-3 px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <svg className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                You're on the <strong>Free</strong> plan. The billing portal is available after upgrading to Starter or Pro.
+                Choose a plan below to get started.
+              </p>
+            </div>
           )}
         </Card>
 

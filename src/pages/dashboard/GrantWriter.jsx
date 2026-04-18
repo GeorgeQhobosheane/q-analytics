@@ -6,44 +6,49 @@ import { useAuth } from '../../context/AuthContext'
 //   start / end are the literal markers Claude is instructed to wrap each section
 const SECTIONS = [
   {
-    key:   'cover_letter',
-    label: 'Cover Letter',
-    start: '[COVER_LETTER_START]',
-    end:   '[COVER_LETTER_END]',
-    hint:  'Letterhead, salutation, project overview, signature',
-    pages: '1 page',
+    key:        'cover_letter',
+    label:      'Cover Letter',
+    start:      '[COVER_LETTER_START]',
+    end:        '[COVER_LETTER_END]',
+    hint:       'Letterhead, salutation, project overview, signature',
+    pages:      '1 page',
+    targetWords: 300,
   },
   {
-    key:   'executive_summary',
-    label: 'Executive Summary',
-    start: '[EXEC_SUMMARY_START]',
-    end:   '[EXEC_SUMMARY_END]',
-    hint:  'Goals, funding requested, expected outcomes',
-    pages: '1 page',
+    key:        'executive_summary',
+    label:      'Executive Summary',
+    start:      '[EXEC_SUMMARY_START]',
+    end:        '[EXEC_SUMMARY_END]',
+    hint:       'Goals, funding requested, expected outcomes',
+    pages:      '1 page',
+    targetWords: 400,
   },
   {
-    key:   'project_narrative',
-    label: 'Project Narrative',
-    start: '[PROJECT_NARRATIVE_START]',
-    end:   '[PROJECT_NARRATIVE_END]',
-    hint:  'Need, objectives, implementation plan, evaluation',
-    pages: '2 pages',
+    key:        'project_narrative',
+    label:      'Project Narrative',
+    start:      '[PROJECT_NARRATIVE_START]',
+    end:        '[PROJECT_NARRATIVE_END]',
+    hint:       'Need, objectives, implementation plan, evaluation',
+    pages:      '2 pages',
+    targetWords: 900,
   },
   {
-    key:   'budget_justification',
-    label: 'Budget Justification',
-    start: '[BUDGET_START]',
-    end:   '[BUDGET_END]',
-    hint:  'Line-item budget with cost justifications by category',
-    pages: '1–2 pages',
+    key:        'budget_justification',
+    label:      'Budget Justification',
+    start:      '[BUDGET_START]',
+    end:        '[BUDGET_END]',
+    hint:       'Line-item budget with cost justifications by category',
+    pages:      '1–2 pages',
+    targetWords: 600,
   },
   {
-    key:   'signature_block',
-    label: 'Signature Block',
-    start: '[SIGNATURE_START]',
-    end:   '[SIGNATURE_END]',
-    hint:  'Certification statement, representative, contact details',
-    pages: '1 page',
+    key:        'signature_block',
+    label:      'Signature Block',
+    start:      '[SIGNATURE_START]',
+    end:        '[SIGNATURE_END]',
+    hint:       'Certification statement, representative, contact details',
+    pages:      '1 page',
+    targetWords: 150,
   },
 ]
 
@@ -210,6 +215,7 @@ export default function GrantWriter({ grant, onClose, onSaved }) {
   // Raw accumulated stream text stored in a ref to avoid stale closure issues
   const streamRef     = useRef('')
   const textareaRefs  = useRef({})
+  const autoSaveTimer = useRef(null)
 
   // ── Auto-start (or retry) generation ────────────────────────────────────────
   useEffect(() => {
@@ -300,13 +306,30 @@ export default function GrantWriter({ grant, onClose, onSaved }) {
     return () => { document.body.style.overflow = '' }
   }, [])
 
+  // ── Auto-save: debounce 4s after every section edit ──────────────────────────
+  useEffect(() => {
+    if (phase !== 'editing') return
+    clearTimeout(autoSaveTimer.current)
+    autoSaveTimer.current = setTimeout(() => {
+      saveDraft(true) // silent = true
+    }, 4000)
+    return () => clearTimeout(autoSaveTimer.current)
+  }, [sections, phase]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Warn before closing during generation ────────────────────────────────────
+  useEffect(() => {
+    if (phase !== 'generating') return
+    const handler = e => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [phase])
+
   // ── Save draft to grant_proposals ────────────────────────────────────────────
-  const saveDraft = useCallback(async () => {
-    setSaveStatus('saving')
+  const saveDraft = useCallback(async (silent = false) => {
+    if (!silent) setSaveStatus('saving')
     try {
       const content = JSON.stringify(sections)
 
-      // Check for existing draft (upsert pattern)
       const { data: existing } = await supabase
         .from('grant_proposals')
         .select('id')
@@ -330,13 +353,17 @@ export default function GrantWriter({ grant, onClose, onSaved }) {
         if (error) throw error
       }
 
-      setSaveStatus('saved')
-      onSaved?.()
-      setTimeout(() => setSaveStatus('idle'), 3500)
+      if (!silent) {
+        setSaveStatus('saved')
+        onSaved?.()
+        setTimeout(() => setSaveStatus('idle'), 3500)
+      }
     } catch (err) {
       console.error('Save draft failed:', err)
-      setSaveStatus('error')
-      setTimeout(() => setSaveStatus('idle'), 3500)
+      if (!silent) {
+        setSaveStatus('error')
+        setTimeout(() => setSaveStatus('idle'), 3500)
+      }
     }
   }, [sections, user.id, grant.id, onSaved])
 
@@ -434,7 +461,10 @@ export default function GrantWriter({ grant, onClose, onSaved }) {
               <p className="text-blue-300 text-xs truncate">{grant.grant_title}</p>
             </div>
           </div>
-          <button onClick={onClose}
+          <button
+            onClick={() => {
+              if (window.confirm('Cancel proposal generation? Progress will be lost.')) onClose()
+            }}
             className="text-white/40 hover:text-white/80 text-sm transition-colors flex-shrink-0">
             Cancel
           </button>
@@ -505,7 +535,7 @@ export default function GrantWriter({ grant, onClose, onSaved }) {
             {/* Streaming text window */}
             <div className="flex-1 bg-white/5 rounded-xl border border-white/10 p-5 overflow-y-auto">
               {livePreview ? (
-                <p className="text-white/75 text-sm leading-relaxed font-mono whitespace-pre-wrap break-words">
+                <p className="text-white/75 text-sm leading-relaxed whitespace-pre-wrap break-words">
                   {livePreview}
                   {/* Blinking cursor */}
                   <span className="inline-block w-[2px] h-[14px] bg-blue-400 ml-0.5 align-middle animate-pulse"/>
@@ -718,15 +748,31 @@ export default function GrantWriter({ grant, onClose, onSaved }) {
           <div className="max-w-4xl mx-auto px-4 sm:px-8 py-6">
 
             {/* Section header */}
-            <div className="mb-5 flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-bold text-navy-900">{activeSec.label}</h2>
-                <p className="text-sm text-gray-400 mt-0.5">{activeSec.hint} · {activeSec.pages}</p>
+            <div className="mb-5">
+              <div className="flex items-start justify-between gap-4 mb-2">
+                <div>
+                  <h2 className="text-xl font-bold text-navy-900">{activeSec.label}</h2>
+                  <p className="text-sm text-gray-400 mt-0.5">{activeSec.hint} · {activeSec.pages}</p>
+                </div>
+                <span className="text-xs bg-navy-900/5 text-navy-900 font-semibold px-3 py-1
+                  rounded-full border border-navy-900/10 flex-shrink-0">
+                  {wc(sections[activeKey]).toLocaleString()} / {activeSec.targetWords} words
+                </span>
               </div>
-              <span className="text-xs bg-navy-900/5 text-navy-900 font-semibold px-3 py-1
-                rounded-full border border-navy-900/10 flex-shrink-0">
-                {wc(sections[activeKey]).toLocaleString()} words
-              </span>
+              {/* Word count progress bar */}
+              {activeSec.targetWords && (() => {
+                const pct = Math.min(100, Math.round(wc(sections[activeKey]) / activeSec.targetWords * 100))
+                return (
+                  <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className={`h-1.5 rounded-full transition-all duration-300 ${
+                        pct >= 100 ? 'bg-green-500' : pct >= 60 ? 'bg-blue-500' : 'bg-gray-300'
+                      }`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                )
+              })()}
             </div>
 
             {/* Editable section card */}
