@@ -20,9 +20,9 @@ export default function Dashboard() {
   const { label, Component } = TABS[activeTab]
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
+    <div className="h-screen flex overflow-hidden bg-gray-50">
       {/* ── Desktop sidebar ── */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 shadow-lg">
+      <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 shadow-lg z-30">
         <Sidebar activeTab={activeTab} onSelect={setActiveTab} />
       </aside>
 
@@ -44,9 +44,9 @@ export default function Dashboard() {
       )}
 
       {/* ── Main content ── */}
-      <div className="flex flex-col flex-1 lg:pl-64 min-h-screen">
+      <div className="flex flex-col flex-1 lg:pl-64 h-screen overflow-hidden">
         <TopBar title={label} onMenuToggle={() => setSidebarOpen(v => !v)} onNavigate={setActiveTab} />
-        <main className="flex-1 p-4 lg:p-6 overflow-auto">
+        <main className="flex-1 p-4 lg:p-6 overflow-y-auto">
           <Component />
         </main>
       </div>
